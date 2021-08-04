@@ -53,6 +53,13 @@ find_library(BOOST_LIB_PATH NAMES libboost_chrono.so PATHS "${MSCL_DIR}/Boost/li
 set(MSCL_INC_PATH "${MSCL_DIR}/source")
 set(BOOST_INC_PATH "${MSCL_DIR}/Boost/include")
 
+# Let the code know if it is being compiled with ROS1 or ROS2
+if(DEFINED ENV{ROS_VERSION})
+  add_definitions(-DMICROSTRAIN_ROS_VERSION=$ENV{ROS_VERSION})
+else()
+  message(FATAL_ERROR "ROS_VERSION environment variable is not set.")
+endif()
+
 add_definitions(-std=c++11)
 
 set(CMAKE_C_FLAGS "-Wno-implicit-function-declaration -Wno-incompatible-pointer-types -Wno-format -fno-builtin-memcpy")
@@ -106,6 +113,7 @@ include_directories(include/${PROJECT_NAME} ${MIPLIBINC} ${MIPUTILINC} ${MSCL_IN
 
 add_library(ros_mscl
   src/microstrain_3dm.cpp
+  src/microstrain_common.cpp
 )
 add_dependencies(${PROJECT_NAME}
   mscl_msgs_generate_messages_cpp

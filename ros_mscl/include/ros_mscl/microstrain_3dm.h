@@ -25,14 +25,17 @@
 #include <iostream>
 #include <fstream>
 
+//Common Implementation
+#include "microstrain_common.h"
+
 //ROS
 #include "ros/ros.h"
+#include "sensor_msgs/MagneticField.h"
 #include "sensor_msgs/NavSatFix.h"
 #include "sensor_msgs/Imu.h"
 #include "sensor_msgs/TimeReference.h"
 #include "geometry_msgs/PoseWithCovarianceStamped.h"
 #include "geometry_msgs/Vector3.h"
-#include "sensor_msgs/MagneticField.h"
 #include "nav_msgs/Odometry.h"
 #include "std_msgs/Int8.h"
 #include "std_msgs/Int16MultiArray.h"
@@ -45,14 +48,6 @@
 
 //MSCL
 #include "mscl/mscl.h"
-#include "mscl_msgs/Status.h"
-#include "mscl_msgs/RTKStatus.h"
-#include "mscl_msgs/FilterStatus.h"
-#include "mscl_msgs/FilterHeading.h"
-#include "mscl_msgs/FilterHeadingState.h"
-#include "mscl_msgs/GPSCorrelationTimestampStamped.h"
-#include "mscl_msgs/GNSSAidingStatus.h"
-#include "mscl_msgs/GNSSDualAntennaStatus.h"
 #include "ros_mscl/SetAccelBias.h"
 #include "ros_mscl/GetAccelBias.h"
 #include "ros_mscl/SetGyroBias.h"
@@ -108,29 +103,6 @@
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////
-//
-// Defines
-//
-/////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#define NUM_COMMAND_LINE_ARGUMENTS 3
-
-#define DEFAULT_PACKET_TIMEOUT_MS  1000 //milliseconds
-
-#define SECS_PER_WEEK (60L*60*24*7)
-#define UTC_GPS_EPOCH_DUR (315964800)
-
-#define USTRAIN_G 9.80665  // from section 5.1.1 in https://www.microstrain.com/sites/default/files/3dm-gx5-25_dcp_manual_8500-0065_reference_document.pdf
-
-//Macro to cause Sleep call to behave as it does for windows
-#define Sleep(x) usleep(x*1000.0)
-
-#define GNSS1_ID 0
-#define GNSS2_ID 1
-#define NUM_GNSS 2
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 /// \brief Contains functions for micostrain driver
 ///
@@ -142,7 +114,7 @@ namespace Microstrain
   /// \brief Microstrain class
   ///
 
-  class Microstrain
+  class Microstrain : public MicrostrainCommon
   {
   public:
 
@@ -151,11 +123,10 @@ namespace Microstrain
 
     void run();
 
-    void parse_mip_packet(const mscl::MipDataPacket& packet);
-    void parse_imu_packet(const mscl::MipDataPacket& packet);
-    void parse_filter_packet(const mscl::MipDataPacket& packet);
-    void parse_gnss_packet(const mscl::MipDataPacket& packet, int gnss_id);
-    void parse_rtk_packet(const mscl::MipDataPacket& packet);
+    void parse_and_publish_imu_packet(const mscl::MipDataPacket& packet);
+    void parse_and_publish_filter_packet(const mscl::MipDataPacket& packet);
+    void parse_and_publish_gnss_packet(const mscl::MipDataPacket& packet, int gnss_id);
+    void parse_and_publish_rtk_packet(const mscl::MipDataPacket& packet);
 
     void device_status_callback();
     bool device_report(std_srvs::Trigger::Request &req, std_srvs::Trigger::Response &res);
@@ -263,72 +234,6 @@ namespace Microstrain
   //Convience for printing packet stats
   void print_packet_stats();
 
-  //Variables/fields
-  std::unique_ptr<mscl::InertialNode> m_inertial_device;
-
-  //Info for converting to the ENU frame
-  bool m_use_enu_frame;
-  tf2::Matrix3x3 m_t_ned2enu;
-
-  //Flag for using device timestamp instead of PC received time
-  bool m_use_device_timestamp;
-
-  //Packet Counters (valid, timeout, and checksum errors)
-  uint32_t m_imu_valid_packet_count;
-  uint32_t m_gnss_valid_packet_count[NUM_GNSS];
-  uint32_t m_filter_valid_packet_count;
-  uint32_t m_rtk_valid_packet_count;
-
-  uint32_t m_imu_timeout_packet_count;
-  uint32_t m_gnss_timeout_packet_count[NUM_GNSS];
-  uint32_t m_filter_timeout_packet_count;
-
-  uint32_t m_imu_checksum_error_packet_count;
-  uint32_t m_gnss_checksum_error_packet_count[NUM_GNSS];
-  uint32_t m_filter_checksum_error_packet_count;
-
-
-  //Data field storage
-  //IMU
-  float m_curr_imu_mag_x;
-  float m_curr_imu_mag_y;
-  float m_curr_imu_mag_z;
-
-  mscl::Vector m_curr_ahrs_quaternion;
-
-  //FILTER
-  double m_gps_leap_seconds;
-
-  double m_curr_filter_pos_lat;
-  double m_curr_filter_pos_long;
-  double m_curr_filter_pos_height;
-
-  float m_curr_filter_vel_north;
-  float m_curr_filter_vel_east;
-  float m_curr_filter_vel_down;
-
-  mscl::Vector m_curr_filter_quaternion;
-
-  float m_curr_filter_roll;
-  float m_curr_filter_pitch;
-  float m_curr_filter_yaw;
-
-  float m_curr_filter_angular_rate_x;
-  float m_curr_filter_angular_rate_y;
-  float m_curr_filter_angular_rate_z;
-
-  float m_curr_filter_pos_uncert_north;
-  float m_curr_filter_pos_uncert_east;
-  float m_curr_filter_pos_uncert_down;
-
-  float m_curr_filter_vel_uncert_north;
-  float m_curr_filter_vel_uncert_east;
-  float m_curr_filter_vel_uncert_down;
-
-  float m_curr_filter_att_uncert_roll;
-  float m_curr_filter_att_uncert_pitch;
-  float m_curr_filter_att_uncert_yaw;
-
   //IMU Publishers
   ros::Publisher m_imu_pub;
   ros::Publisher m_mag_pub;
@@ -362,95 +267,6 @@ namespace Microstrain
   //External GNSS subscriber
   ros::Subscriber m_external_gps_time_sub;
 
-  //IMU Messages
-  sensor_msgs::Imu           m_imu_msg;
-  sensor_msgs::MagneticField m_mag_msg;
-  mscl_msgs::GPSCorrelationTimestampStamped m_gps_corr_msg;
-
-  //GNSS Messages
-  sensor_msgs::NavSatFix      m_gnss_msg[NUM_GNSS];
-  nav_msgs::Odometry          m_gnss_odom_msg[NUM_GNSS];
-  sensor_msgs::TimeReference  m_gnss_time_msg[NUM_GNSS];
-  mscl_msgs::GNSSAidingStatus m_gnss_aiding_status_msg[NUM_GNSS];
-  mscl_msgs::GNSSDualAntennaStatus m_gnss_dual_antenna_status_msg;
-
-  //RTK Messages
-  mscl_msgs::RTKStatus   m_rtk_msg;
- 
-  //Filter Messages
-  nav_msgs::Odometry                 m_filter_msg;
-  sensor_msgs::Imu                   m_filtered_imu_msg;
-  nav_msgs::Odometry                 m_filter_relative_pos_msg;
-  mscl_msgs::FilterStatus            m_filter_status_msg;
-  mscl_msgs::FilterHeadingState      m_filter_heading_state_msg;
-  mscl_msgs::FilterHeading           m_filter_heading_msg;
-
-  //Device Status Message
-  mscl_msgs::Status m_device_status_msg;
- 
-  //Frame ids
-  std::string m_imu_frame_id;
-  std::string m_gnss_frame_id[NUM_GNSS];
-  std::string m_filter_frame_id;
-  std::string m_filter_child_frame_id;
- 
-  //Topic strings
-  std::string m_velocity_zupt_topic;
-  std::string m_angular_zupt_topic;
-  std::string m_external_gps_time_topic;
-  
-  //Publish data flags
-  bool m_publish_imu;
-  bool m_publish_gps_corr;
-  bool m_publish_gnss[NUM_GNSS];
-  bool m_publish_gnss_aiding_status[NUM_GNSS];
-  bool m_publish_filter;
-  bool m_publish_filter_relative_pos;
-  bool m_publish_rtk;
-
-  //ZUPT, angular ZUPT topic listener variables
-  bool m_angular_zupt;
-  bool m_velocity_zupt;
-  
-  bool m_vel_still;
-  bool m_ang_still;
-  
-  //Static covariance vectors
-  std::vector<double> m_imu_linear_cov;
-  std::vector<double> m_imu_angular_cov;
-  std::vector<double> m_imu_orientation_cov;
-
-  // Update rates
-  int m_imu_data_rate;
-  int m_gnss_data_rate[NUM_GNSS];
-  int m_filter_data_rate;
-
-  //Gnss antenna offsets
-  std::vector<double> m_gnss_antenna_offset[NUM_GNSS];
-
-  //Various settings variables
-  clock_t m_start;
-  uint8_t m_com_mode;
-  float   m_field_data[3];
-  float   m_soft_iron[9];
-  float   m_soft_iron_readback[9];
-  float   m_angles[3];
-  float   m_heading_angle;
-  float   m_readback_angles[3];
-  float   m_noise[3];
-  float   m_beta[3];
-  float   m_readback_beta[3];
-  float   m_readback_noise[3];
-  float   m_offset[3];
-  float   m_readback_offset[3];
-  double  m_reference_position_command[3];
-  double  m_reference_position_readback[3];
-  uint8_t m_dynamics_mode;
-
-  //Raw data file parameters
-  bool          m_raw_file_enable;
-  bool          m_raw_file_include_support_data;
-  std::ofstream m_raw_file;
   }; //Microstrain class
 
 
