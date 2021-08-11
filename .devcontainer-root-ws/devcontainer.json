@@ -1,0 +1,32 @@
+{
+    "name": "amd64/ros1-micrsotrain-dev:melodic",
+    "context": "..",
+    "dockerFile": "Dockerfile",
+    "build": {
+        "args": {
+            "ROS_VERSION": "melodic"
+        }
+    },
+    "extensions": [
+        "ms-iot.vscode-ros",
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-vscode.cmake-tools"
+    ],
+    "containerUser": "root",
+    "remoteUser": "microstrain",
+    "runArgs": [
+        "--net=host",
+        "--privileged",
+        "--security-opt", "seccomp=unconfined"
+    ],
+    "settings": {},
+    "postAttachCommand": "",
+    "mounts": [
+        "source=/dev,target=/dev,type=bind,consistency=cached",
+        "source=${localWorkspaceFolder}/src,target=/home/microstrain/catkin_docker_ws/src,type=bind,consistency=cached",
+        "source=${localWorkspaceFolder}/.devcontainer/.vscode-docker,target=/home/microstrain/catkin_docker_ws/.vscode,type=bind,consistency=cached"
+    ],
+    "workspaceMount": "",
+    "workspaceFolder": "/home/microstrain/catkin_docker_ws"
+}
