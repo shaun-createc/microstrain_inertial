@@ -163,6 +163,8 @@
     <param name="publish_filter"       value="true"                    type="bool" />
     <param name="filter_data_rate"     value="$(arg filter_data_rate)" type="int" />
 
+    <param name="publish_pressure_altitude" value="true" type="bool" />
+
     <!-- Sensor2vehicle frame transformation selector
          0 = None, 1 = Euler Angles, 2 - matrix, 3 - quaternion
          Notes: These are different ways of setting the same parameter in the device.
